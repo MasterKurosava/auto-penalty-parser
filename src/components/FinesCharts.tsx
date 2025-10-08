@@ -137,14 +137,14 @@ export function FinesCharts({ cases }: FinesChartsProps) {
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-3 sm:gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Распределение по статусам</CardTitle>
-          <CardDescription>Соотношение оплаченных штрафов</CardDescription>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm sm:text-base">Распределение по статусам</CardTitle>
+          <CardDescription className="text-xs sm:text-sm">Соотношение оплаченных штрафов</CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={200}>
+          <ResponsiveContainer width="100%" height={180}>
             <PieChart>
               <Pie
                 data={statusData}
@@ -174,12 +174,12 @@ export function FinesCharts({ cases }: FinesChartsProps) {
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Топ нарушений</CardTitle>
-          <CardDescription>Наиболее частые статьи</CardDescription>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm sm:text-base">Топ нарушений</CardTitle>
+          <CardDescription className="text-xs sm:text-sm">Наиболее частые статьи</CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={200}>
+          <ResponsiveContainer width="100%" height={180}>
             <BarChart data={topArticles.slice(0, 5)}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="code" tick={{ fontSize: 10 }} />
@@ -207,11 +207,11 @@ export function FinesCharts({ cases }: FinesChartsProps) {
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Финансовая статистика</CardTitle>
-          <CardDescription>Общие суммы штрафов</CardDescription>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm sm:text-base">Финансовая статистика</CardTitle>
+          <CardDescription className="text-xs sm:text-sm">Общие суммы штрафов</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-2 sm:space-y-3">
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Всего штрафов:</span>
@@ -247,12 +247,12 @@ export function FinesCharts({ cases }: FinesChartsProps) {
 
       {timelineData.length > 1 && (
         <Card className="md:col-span-2 lg:col-span-3">
-          <CardHeader>
-            <CardTitle className="text-base">Динамика нарушений</CardTitle>
-            <CardDescription>Количество штрафов по датам (последние 30 дней)</CardDescription>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm sm:text-base">Динамика нарушений</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">Количество штрафов по датам (последние 30 дней)</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
+            <ResponsiveContainer width="100%" height={220}>
               <LineChart data={timelineData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis

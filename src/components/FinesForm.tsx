@@ -97,7 +97,7 @@ export function FinesForm() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               <div className="space-y-2">
                 <Label htmlFor="dateFrom">Дата от</Label>
                 <div className="relative">
@@ -152,13 +152,13 @@ export function FinesForm() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Button type="submit" disabled={isLoading}>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Загрузить штрафы
               </Button>
               {cases.length !== allCases.length && allCases.length > 0 && (
-                <span className="text-sm text-muted-foreground">
+                <span className="text-sm text-muted-foreground text-center sm:text-left">
                   Показано {cases.length} из {allCases.length}
                 </span>
               )}

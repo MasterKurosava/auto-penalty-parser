@@ -50,28 +50,28 @@ export function EcpCard() {
 
   return (
     <Card>
-      <CardContent className="pt-6">
-        <div className="flex flex-col md:flex-row md:items-center gap-6">
-          <div className="flex items-center gap-3 flex-1">
-            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-primary/10">
-              <Key className="h-6 w-6 text-primary" />
+      <CardContent className="pt-4 sm:pt-6">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+          <div className="flex items-start sm:items-center gap-3 flex-1">
+            <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-primary/10 shrink-0">
+              <Key className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
             </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <h3 className="font-semibold">Электронно-цифровая подпись</h3>
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mb-1">
+                <h3 className="font-semibold text-sm sm:text-base">Электронно-цифровая подпись</h3>
                 {isConnected && (
-                  <Badge variant="default" className="gap-1">
+                  <Badge variant="default" className="gap-1 w-fit">
                     <CheckCircle2 className="h-3 w-3" />
                     Подключено
                   </Badge>
                 )}
               </div>
               {!isConnected ? (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs sm:text-sm text-muted-foreground">
                   Подключите ЭЦП для доступа к данным PSAP
                 </p>
               ) : (
-                <div className="flex items-center gap-4 text-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs sm:text-sm">
                   {userData?.iin && (
                     <div className="flex items-center gap-2">
                       <span className="text-muted-foreground">ИИН:</span>
@@ -81,9 +81,9 @@ export function EcpCard() {
                     </div>
                   )}
                   {userData?.uuid && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground">UUID:</span>
-                      <code className="text-xs bg-muted px-2 py-1 rounded truncate max-w-[200px]">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-muted-foreground shrink-0">UUID:</span>
+                      <code className="text-xs bg-muted px-2 py-1 rounded truncate max-w-[140px] sm:max-w-[200px]">
                         {userData.uuid}
                       </code>
                     </div>
@@ -93,12 +93,13 @@ export function EcpCard() {
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 w-full sm:w-auto">
             {!isConnected ? (
               <Button
                 onClick={handleConnect}
                 disabled={isConnecting}
-                size="lg"
+                size="default"
+                className="w-full sm:w-auto"
               >
                 {isConnecting && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -110,6 +111,7 @@ export function EcpCard() {
                 onClick={handleConnect}
                 variant="outline"
                 disabled={isConnecting}
+                className="w-full sm:w-auto"
               >
                 {isConnecting && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

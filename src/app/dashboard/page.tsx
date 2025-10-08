@@ -14,8 +14,8 @@ export default async function DashboardPage() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
       <Header />
 
-      <main className="container mx-auto px-4 py-6">
-        <div className="space-y-6">
+      <main className="container mx-auto px-3 sm:px-4 py-4 sm:py-6">
+        <div className="space-y-4 sm:space-y-6">
           <EcpCard />
           <FinesForm />
         </div>

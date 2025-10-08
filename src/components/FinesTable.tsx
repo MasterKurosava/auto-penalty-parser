@@ -201,25 +201,25 @@ export function FinesTable({ cases }: FinesTableProps) {
       <Collapsible.Root open={isChartsExpanded} onOpenChange={setIsChartsExpanded}>
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <CardTitle>Аналитика и графики</CardTitle>
-                <CardDescription>Визуализация данных по штрафам</CardDescription>
+                <CardTitle className="text-lg sm:text-xl">Аналитика и графики</CardTitle>
+                <CardDescription className="text-sm">Визуализация данных по штрафам</CardDescription>
               </div>
               <Collapsible.Trigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="gap-2"
+                  className="gap-2 w-full sm:w-auto"
                 >
                   {isChartsExpanded ? (
                     <>
-                      Свернуть
+                      <span>Свернуть</span>
                       <ChevronUp className="h-4 w-4" />
                     </>
                   ) : (
                     <>
-                      Развернуть
+                      <span>Развернуть</span>
                       <ChevronDown className="h-4 w-4" />
                     </>
                   )}
@@ -238,51 +238,47 @@ export function FinesTable({ cases }: FinesTableProps) {
       <Collapsible.Root open={isTableExpanded} onOpenChange={setIsTableExpanded}>
         <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex-1">
-              <div className="flex items-center gap-4">
-                <div>
-                  <CardTitle>Список штрафов</CardTitle>
-                  <CardDescription>
-                    Общая сумма: {totalAmount.toLocaleString('ru-KZ')} ₸
-                  </CardDescription>
-                </div>
-              </div>
+              <CardTitle className="text-lg sm:text-xl">Список штрафов</CardTitle>
+              <CardDescription className="text-sm">
+                Общая сумма: {totalAmount.toLocaleString('ru-KZ')} ₸
+              </CardDescription>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap sm:flex-nowrap">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={exportToExcel}
-                className="gap-2"
+                className="gap-1 flex-1 sm:flex-none"
               >
                 <FileSpreadsheet className="h-4 w-4" />
-                Excel
+                <span className="hidden sm:inline">Excel</span>
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={exportToJson}
-                className="gap-2"
+                className="gap-1 flex-1 sm:flex-none"
               >
                 <FileJson className="h-4 w-4" />
-                JSON
+                <span className="hidden sm:inline">JSON</span>
               </Button>
               <Collapsible.Trigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="gap-2"
+                  className="gap-1 w-full sm:w-auto"
                 >
                   {isTableExpanded ? (
                     <>
-                      Свернуть
+                      <span>Свернуть</span>
                       <ChevronUp className="h-4 w-4" />
                     </>
                   ) : (
                     <>
-                      Развернуть
+                      <span>Развернуть</span>
                       <ChevronDown className="h-4 w-4" />
                     </>
                   )}
@@ -292,8 +288,8 @@ export function FinesTable({ cases }: FinesTableProps) {
           </div>
         </CardHeader>
         <Collapsible.Content className="CollapsibleContent">
-          <CardContent>
-            <div className="rounded-md border">
+          <CardContent className="px-0 sm:px-6">
+            <div className="rounded-md border overflow-x-auto">
               <Table>
               <TableHeader>
                 <TableRow>

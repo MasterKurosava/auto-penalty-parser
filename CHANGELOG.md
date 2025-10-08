@@ -1,6 +1,37 @@
 # Журнал изменений
 
-## [Latest Update v3] - 2025-10-08
+## [Latest Update v4] - 2025-10-08
+
+### Плавные анимации
+- ✅ Установлена библиотека **@radix-ui/react-collapsible**
+- ✅ Плавное сворачивание/разворачивание блоков (300ms ease-out)
+- ✅ Анимация высоты и прозрачности
+- ✅ Автоматический расчет высоты контента
+- ✅ CSS keyframes для slideDown/slideUp
+
+### Мобильная адаптивность
+- ✅ **EcpCard**: вертикальная компоновка на mobile, адаптивные размеры
+- ✅ **FinesForm**: 1/2/4 колонки, кнопка на всю ширину на mobile
+- ✅ **FinesTable**: horizontal scroll, кнопки только с иконками на mobile
+- ✅ **FinesCharts**: уменьшенная высота, компактные заголовки
+- ✅ **Dashboard**: адаптивные отступы (px-3 sm:px-4, py-4 sm:py-6)
+
+### Responsive Typography
+- ✅ Заголовки: text-lg sm:text-xl
+- ✅ Описания: text-xs sm:text-sm
+- ✅ Адаптивные размеры иконок
+
+### Touch Targets
+- ✅ Минимальный размер 44x44px для всех кнопок
+- ✅ Увеличенные touch areas на mobile
+
+### Layout Improvements
+- ✅ Flexbox с flex-col/sm:flex-row для адаптивности
+- ✅ Горизонтальный scroll для таблицы (overflow-x-auto)
+- ✅ Скрытие текста кнопок на mobile (.hidden sm:inline)
+- ✅ Full-width кнопки на mobile (w-full sm:w-auto)
+
+## [Previous Update v3] - 2025-10-08
 
 ### Графики и аналитика
 - ✅ **Круговая диаграмма** - распределение по статусам оплаты
