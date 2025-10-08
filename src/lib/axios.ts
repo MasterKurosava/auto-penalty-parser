@@ -12,7 +12,10 @@ if (process.env.NODE_EXTRA_CA_CERTS) {
     const ca = fs.readFileSync(process.env.NODE_EXTRA_CA_CERTS)
     httpsAgent = new https.Agent({ ca, rejectUnauthorized: true })
   } catch {}
-} else if (process.env.NODE_ENV !== 'production') {
+} else {
+  // Disable certificate verification for self-signed certificates
+  // Note: This is required because erap-public.kgp.kz uses a certificate
+  // that cannot be verified by standard CA certificates
   httpsAgent = new https.Agent({ rejectUnauthorized: false })
 }
 
