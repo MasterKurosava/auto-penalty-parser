@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,31 +11,63 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { FormError } from '@/components/ui/form-error'
 import { toast } from 'sonner'
 import { Loader2, FileSearch } from 'lucide-react'
 import { FinesTable } from './FinesTable'
 import { PsapCase } from '@/lib/types'
+import { finesFilterSchema, validateFormData, type FinesFilterData } from '@/lib/validations'
 
-export function FinesForm() {
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
-  const [limit, setLimit] = useState('10')
-  const [grnzFilter, setGrnzFilter] = useState('')
+export const FinesForm = React.memo(function FinesForm() {
+  const [formData, setFormData] = useState<FinesFilterData>({
+    dateFrom: '',
+    dateTo: '',
+    limit: 10,
+    grnzFilter: '',
+  })
+  const [errors, setErrors] = useState<Record<string, string[]>>({})
   const [isLoading, setIsLoading] = useState(false)
   const [cases, setCases] = useState<PsapCase[]>([])
   const [allCases, setAllCases] = useState<PsapCase[]>([])
 
+  const handleInputChange = useCallback((field: keyof FinesFilterData, value: string | number) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+
+    // Очищаем ошибку для этого поля при изменении
+    setErrors(prev => {
+      if (prev[field]) {
+        const newErrors = { ...prev }
+        delete newErrors[field]
+        return newErrors
+      }
+      return prev
+    })
+  }, [])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setErrors({})
     setIsLoading(true)
+
+    // Валидация формы
+    const validation = validateFormData(finesFilterSchema, {
+      ...formData,
+      limit: formData.limit.toString(),
+    })
+
+    if (!validation.success) {
+      setErrors(validation.errors || {})
+      setIsLoading(false)
+      return
+    }
 
     try {
       const params = new URLSearchParams({
-        limit,
+        limit: validation.data.limit.toString(),
       })
 
-      if (dateFrom) params.append('from', dateFrom)
-      if (dateTo) params.append('to', dateTo)
+      if (validation.data.dateFrom) params.append('from', validation.data.dateFrom)
+      if (validation.data.dateTo) params.append('to', validation.data.dateTo)
 
       const response = await fetch(`/api/psap/cases?${params.toString()}`)
 
@@ -71,8 +103,9 @@ export function FinesForm() {
     }
   }
 
-  const handleGrnzFilter = (value: string) => {
-    setGrnzFilter(value)
+  const handleGrnzFilter = useCallback((value: string) => {
+    handleInputChange('grnzFilter', value)
+
     if (!value.trim()) {
       setCases(allCases)
     } else {
@@ -81,7 +114,7 @@ export function FinesForm() {
       )
       setCases(filtered)
     }
-  }
+  }, [allCases, handleInputChange])
 
   return (
     <div className="space-y-6">
@@ -104,12 +137,18 @@ export function FinesForm() {
                   <Input
                     id="dateFrom"
                     type="date"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
+                    value={formData.dateFrom}
+                    onChange={(e) => handleInputChange('dateFrom', e.target.value)}
                     disabled={isLoading}
                     className="cursor-pointer"
+                    aria-invalid={!!errors.dateFrom}
+                    aria-describedby={errors.dateFrom ? 'dateFrom-error' : undefined}
                   />
                 </div>
+                <FormError
+                  message={errors.dateFrom?.[0]}
+                  id="dateFrom-error"
+                />
               </div>
 
               <div className="space-y-2">
@@ -118,12 +157,18 @@ export function FinesForm() {
                   <Input
                     id="dateTo"
                     type="date"
-                    value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
+                    value={formData.dateTo}
+                    onChange={(e) => handleInputChange('dateTo', e.target.value)}
                     disabled={isLoading}
                     className="cursor-pointer"
+                    aria-invalid={!!errors.dateTo}
+                    aria-describedby={errors.dateTo ? 'dateTo-error' : undefined}
                   />
                 </div>
+                <FormError
+                  message={errors.dateTo?.[0]}
+                  id="dateTo-error"
+                />
               </div>
 
               <div className="space-y-2">
@@ -132,10 +177,16 @@ export function FinesForm() {
                   id="limit"
                   type="number"
                   min="1"
-                  max="100"
-                  value={limit}
-                  onChange={(e) => setLimit(e.target.value)}
+                  max="1000"
+                  value={formData.limit}
+                  onChange={(e) => handleInputChange('limit', parseInt(e.target.value) || 10)}
                   disabled={isLoading}
+                  aria-invalid={!!errors.limit}
+                  aria-describedby={errors.limit ? 'limit-error' : undefined}
+                />
+                <FormError
+                  message={errors.limit?.[0]}
+                  id="limit-error"
                 />
               </div>
 
@@ -145,9 +196,15 @@ export function FinesForm() {
                   id="grnzFilter"
                   type="text"
                   placeholder="Введите госномер"
-                  value={grnzFilter}
+                  value={formData.grnzFilter}
                   onChange={(e) => handleGrnzFilter(e.target.value)}
                   disabled={isLoading || allCases.length === 0}
+                  aria-invalid={!!errors.grnzFilter}
+                  aria-describedby={errors.grnzFilter ? 'grnzFilter-error' : undefined}
+                />
+                <FormError
+                  message={errors.grnzFilter?.[0]}
+                  id="grnzFilter-error"
                 />
               </div>
             </div>
@@ -167,8 +224,7 @@ export function FinesForm() {
         </CardContent>
       </Card>
 
-      {cases.length > 0 && <FinesTable cases={cases} />}
+      {(cases.length > 0 || isLoading) && <FinesTable cases={cases} isLoading={isLoading} />}
     </div>
   )
-}
-
+})

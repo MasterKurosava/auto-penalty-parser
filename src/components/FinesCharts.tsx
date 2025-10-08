@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import React, { useMemo } from 'react'
 import {
   Card,
   CardContent,
@@ -37,7 +37,7 @@ const COLORS = {
   unpaid: '#dc2626',
 }
 
-export function FinesCharts({ cases }: FinesChartsProps) {
+export const FinesCharts = React.memo(function FinesCharts({ cases }: FinesChartsProps) {
   const statusData = useMemo(() => {
     const paid = cases.filter(c => c.paid === 1).length
     const partial = cases.filter(c => c.paid === 3).length
@@ -294,5 +294,5 @@ export function FinesCharts({ cases }: FinesChartsProps) {
       )}
     </div>
   )
-}
+})
 

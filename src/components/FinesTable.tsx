@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import React, { useMemo, useState, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -23,6 +23,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { TableSkeleton, CardSkeleton } from '@/components/ui/skeleton'
 import * as Collapsible from '@radix-ui/react-collapsible'
 import { FileJson, FileSpreadsheet, CheckCircle2, XCircle, ArrowUpDown, ArrowUp, ArrowDown, FileText, ChevronDown, ChevronUp } from 'lucide-react'
 import { PsapCase } from '@/lib/types'
@@ -33,17 +34,18 @@ import { FinesCharts } from './FinesCharts'
 
 interface FinesTableProps {
   cases: PsapCase[]
+  isLoading?: boolean
 }
 
 type SortField = 'paid' | 'commitDate' | 'grnz' | 'article' | 'amount'
 type SortDirection = 'asc' | 'desc' | null
 
-export function FinesTable({ cases }: FinesTableProps) {
+export const FinesTable = React.memo(function FinesTable({ cases, isLoading = false }: FinesTableProps) {
   const [sortField, setSortField] = useState<SortField | null>(null)
   const [sortDirection, setSortDirection] = useState<SortDirection>(null)
   const [isChartsExpanded, setIsChartsExpanded] = useState(true)
   const [isTableExpanded, setIsTableExpanded] = useState(true)
-  const exportToJson = () => {
+  const exportToJson = useCallback(() => {
     const dataStr = JSON.stringify(cases, null, 2)
     const dataBlob = new Blob([dataStr], { type: 'application/json' })
     const url = URL.createObjectURL(dataBlob)
@@ -52,9 +54,9 @@ export function FinesTable({ cases }: FinesTableProps) {
     link.download = `fines-${Date.now()}.json`
     link.click()
     URL.revokeObjectURL(url)
-  }
+  }, [cases])
 
-  const exportToExcel = () => {
+  const exportToExcel = useCallback(() => {
     if (cases.length === 0) return
 
     const exportData = cases.map((c) => ({
@@ -101,7 +103,7 @@ export function FinesTable({ cases }: FinesTableProps) {
     XLSX.utils.book_append_sheet(wb, ws, 'Штрафы')
 
     XLSX.writeFile(wb, `штрафы-${new Date().toISOString().split('T')[0]}.xlsx`)
-  }
+  }, [cases])
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '-'
@@ -127,7 +129,7 @@ export function FinesTable({ cases }: FinesTableProps) {
     window.open(pdfUrl, '_blank', 'noopener,noreferrer')
   }
 
-  const handleSort = (field: SortField) => {
+  const handleSort = useCallback((field: SortField) => {
     if (sortField === field) {
       if (sortDirection === 'asc') {
         setSortDirection('desc')
@@ -141,7 +143,7 @@ export function FinesTable({ cases }: FinesTableProps) {
       setSortField(field)
       setSortDirection('asc')
     }
-  }
+  }, [sortField, sortDirection])
 
   const sortedCases = useMemo(() => {
     if (!sortField || !sortDirection) return cases
@@ -289,8 +291,13 @@ export function FinesTable({ cases }: FinesTableProps) {
         </CardHeader>
         <Collapsible.Content className="CollapsibleContent">
           <CardContent className="px-0 sm:px-6">
-            <div className="rounded-md border overflow-x-auto">
-              <Table>
+            {isLoading ? (
+              <div className="p-6">
+                <TableSkeleton rows={5} columns={7} />
+              </div>
+            ) : (
+              <div className="rounded-md border overflow-x-auto">
+                <Table role="table" aria-label="Список штрафов">
               <TableHeader>
                 <TableRow>
                   <TableHead>
@@ -463,14 +470,15 @@ export function FinesTable({ cases }: FinesTableProps) {
                     </TableRow>
                   ))
                 )}
-              </TableBody>
+                </TableBody>
               </Table>
-            </div>
+              </div>
+            )}
           </CardContent>
         </Collapsible.Content>
       </Card>
       </Collapsible.Root>
     </div>
   )
-}
+})
 

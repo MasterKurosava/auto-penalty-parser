@@ -13,24 +13,51 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import { FormError, FormErrors } from '@/components/ui/form-error'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
+import { loginSchema, validateFormData, type LoginFormData } from '@/lib/validations'
 
 export function LoginForm() {
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
+  const [formData, setFormData] = useState<LoginFormData>({
+    username: '',
+    password: '',
+  })
+  const [errors, setErrors] = useState<Record<string, string[]>>({})
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
+  const handleInputChange = (field: keyof LoginFormData, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+
+    // Очищаем ошибку для этого поля при изменении
+    if (errors[field]) {
+      setErrors(prev => {
+        const newErrors = { ...prev }
+        delete newErrors[field]
+        return newErrors
+      })
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setErrors({})
     setIsLoading(true)
+
+    // Валидация формы
+    const validation = validateFormData(loginSchema, formData)
+    if (!validation.success) {
+      setErrors(validation.errors || {})
+      setIsLoading(false)
+      return
+    }
 
     try {
       const response = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify(validation.data),
       })
 
       if (response.ok) {
@@ -63,10 +90,16 @@ export function LoginForm() {
               id="username"
               type="text"
               placeholder="Введите логин"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              value={formData.username}
+              onChange={(e) => handleInputChange('username', e.target.value)}
               required
               disabled={isLoading}
+              aria-invalid={!!errors.username}
+              aria-describedby={errors.username ? 'username-error' : undefined}
+            />
+            <FormError
+              message={errors.username?.[0]}
+              id="username-error"
             />
           </div>
           <div className="space-y-2">
@@ -75,10 +108,16 @@ export function LoginForm() {
               id="password"
               type="password"
               placeholder="Введите пароль"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              value={formData.password}
+              onChange={(e) => handleInputChange('password', e.target.value)}
               required
               disabled={isLoading}
+              aria-invalid={!!errors.password}
+              aria-describedby={errors.password ? 'password-error' : undefined}
+            />
+            <FormError
+              message={errors.password?.[0]}
+              id="password-error"
             />
           </div>
         </CardContent>
