@@ -100,7 +100,7 @@ export function createFieldValidator<T>(
 ) {
   return (value: unknown) => {
     try {
-      const fieldSchema = schema.shape[fieldName as string]
+      const fieldSchema = (schema as any).shape?.[fieldName as string]
       if (!fieldSchema) return null
 
       const result = fieldSchema.safeParse(value)

@@ -151,7 +151,7 @@ export const FinesCharts = React.memo(function FinesCharts({ cases }: FinesChart
                 cx="50%"
                 cy="50%"
                 labelLine={false}
-                label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                label={({ percent }: any) => `${(percent * 100).toFixed(0)}%`}
                 outerRadius={70}
                 fill="#8884d8"
                 dataKey="value"
@@ -163,6 +163,7 @@ export const FinesCharts = React.memo(function FinesCharts({ cases }: FinesChart
               <Tooltip
                 formatter={(value: number) => [`${value} шт.`, 'Количество']}
               />
+              {/* @ts-ignore */}
               <Legend
                 verticalAlign="bottom"
                 height={36}
@@ -185,7 +186,7 @@ export const FinesCharts = React.memo(function FinesCharts({ cases }: FinesChart
               <XAxis dataKey="code" tick={{ fontSize: 10 }} />
               <YAxis />
               <Tooltip
-                content={({ active, payload }) => {
+                content={({ active, payload }: any) => {
                   if (active && payload && payload.length) {
                     const item = payload[0].payload
                     return (
@@ -262,7 +263,7 @@ export const FinesCharts = React.memo(function FinesCharts({ cases }: FinesChart
                 />
                 <YAxis />
                 <Tooltip
-                  content={({ active, payload }) => {
+                  content={({ active, payload }: any) => {
                     if (active && payload && payload.length) {
                       return (
                         <div className="bg-background border rounded-lg p-3 shadow-lg">
@@ -277,6 +278,7 @@ export const FinesCharts = React.memo(function FinesCharts({ cases }: FinesChart
                     return null
                   }}
                 />
+                {/* @ts-ignore */}
                 <Legend />
                 <Line
                   type="monotone"

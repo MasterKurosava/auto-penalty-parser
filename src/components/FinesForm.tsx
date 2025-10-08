@@ -14,7 +14,7 @@ import {
 import { FormError } from '@/components/ui/form-error'
 import { toast } from 'sonner'
 import { Loader2, FileSearch } from 'lucide-react'
-import { FinesTable } from './FinesTable'
+import { FinesTable } from '@/components/FinesTable'
 import { PsapCase } from '@/lib/types'
 import { finesFilterSchema, validateFormData, type FinesFilterData } from '@/lib/validations'
 
@@ -50,9 +50,11 @@ export const FinesForm = React.memo(function FinesForm() {
     setIsLoading(true)
 
     // Валидация формы
-    const validation = validateFormData(finesFilterSchema, {
-      ...formData,
+    const validation = validateFormData(finesFilterSchema as any, {
+      dateFrom: formData.dateFrom,
+      dateTo: formData.dateTo,
       limit: formData.limit.toString(),
+      grnzFilter: formData.grnzFilter,
     })
 
     if (!validation.success) {
@@ -62,12 +64,13 @@ export const FinesForm = React.memo(function FinesForm() {
     }
 
     try {
+      const validatedData = validation.data as FinesFilterData
       const params = new URLSearchParams({
-        limit: validation.data.limit.toString(),
+        limit: validatedData.limit.toString(),
       })
 
-      if (validation.data.dateFrom) params.append('from', validation.data.dateFrom)
-      if (validation.data.dateTo) params.append('to', validation.data.dateTo)
+      if (validatedData.dateFrom) params.append('from', validatedData.dateFrom)
+      if (validatedData.dateTo) params.append('to', validatedData.dateTo)
 
       const response = await fetch(`/api/psap/cases?${params.toString()}`)
 
@@ -147,7 +150,6 @@ export const FinesForm = React.memo(function FinesForm() {
                 </div>
                 <FormError
                   message={errors.dateFrom?.[0]}
-                  id="dateFrom-error"
                 />
               </div>
 
@@ -167,7 +169,6 @@ export const FinesForm = React.memo(function FinesForm() {
                 </div>
                 <FormError
                   message={errors.dateTo?.[0]}
-                  id="dateTo-error"
                 />
               </div>
 
@@ -186,7 +187,6 @@ export const FinesForm = React.memo(function FinesForm() {
                 />
                 <FormError
                   message={errors.limit?.[0]}
-                  id="limit-error"
                 />
               </div>
 
@@ -204,7 +204,6 @@ export const FinesForm = React.memo(function FinesForm() {
                 />
                 <FormError
                   message={errors.grnzFilter?.[0]}
-                  id="grnzFilter-error"
                 />
               </div>
             </div>

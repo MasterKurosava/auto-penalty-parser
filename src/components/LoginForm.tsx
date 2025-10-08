@@ -99,7 +99,6 @@ export function LoginForm() {
             />
             <FormError
               message={errors.username?.[0]}
-              id="username-error"
             />
           </div>
           <div className="space-y-2">
@@ -117,7 +116,6 @@ export function LoginForm() {
             />
             <FormError
               message={errors.password?.[0]}
-              id="password-error"
             />
           </div>
         </CardContent>
