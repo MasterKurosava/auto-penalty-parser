@@ -26,7 +26,13 @@ export async function POST(request: NextRequest) {
 
     await setPsapCookies({ uuid, token, refreshToken })
 
-    return NextResponse.json({ uuid, id, iin })
+    return NextResponse.json({
+      uuid,
+      id,
+      iin,
+      token,
+      refreshToken
+    })
   } catch (error: any) {
     return NextResponse.json(
       { error: 'Authentication failed', details: error.message },
@@ -34,4 +40,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-

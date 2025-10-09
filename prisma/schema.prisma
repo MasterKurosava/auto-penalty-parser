@@ -1,0 +1,89 @@
+// Prisma schema for penalty parser with user accounts and PSAP authentication
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User accounts with login/password
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  username     String   @unique @db.Text
+  passwordHash String   @map("password_hash") @db.Text
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  ecpAuths EcpAuth[]
+
+  @@map("users")
+  @@index([username])
+}
+
+// PSAP Authentication - хранит токены после аутентификации через ЭЦП
+model EcpAuth {
+  id     String @id @default(uuid()) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+
+  // Минимальная инфо о сертификате (для UI)
+  label  String? @db.Text
+  iinBin String  @map("iin_bin") @db.Text
+
+  // ГЛАВНОЕ - зашифрованные токены от PSAP (/psap/api/auth/psap/by-access-uuid)
+  authTokenEnc    Bytes  @map("auth_token_enc")
+  refreshTokenEnc Bytes? @map("refresh_token_enc")
+  uuidEnc         Bytes  @map("uuid_enc")
+  psapId          String @map("psap_id") @db.Text // id из PSAP response
+
+  // Статус токенов
+  lastCheckedAt DateTime? @map("last_checked_at") @db.Timestamptz(6)
+  validUntil    DateTime? @map("valid_until") @db.Timestamptz(6)
+  isValid       Boolean   @default(true) @map("is_valid")
+  isActive      Boolean   @default(true) @map("is_active") // Активна ли для проверки штрафов
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fines Fine[]
+
+  @@unique([userId, iinBin])
+  @@map("ecp_authentications")
+  @@index([userId])
+  @@index([iinBin])
+  @@index([isValid, isActive])
+}
+
+// Fines fetched using PSAP authentication
+model Fine {
+  id              String    @id @default(uuid()) @db.Uuid
+  ecpAuthId       String    @map("ecp_auth_id") @db.Uuid
+  externalId      String    @map("external_id") @db.Text
+
+  // Основные поля для отображения
+  status          String    @db.Text // paid, unpaid, partially_paid
+  commitDate      DateTime? @map("commit_date") @db.Timestamptz(6) // Дата совершения
+  decisionDate    DateTime? @map("decision_date") @db.Timestamptz(6) // Дата предписания
+  fullName        String    @map("full_name") @db.Text // ФИО
+  vehicleNumber   String    @map("vehicle_number") @db.Text // Госномер
+  serialNumber    String?   @map("serial_number") @db.Text // Серийный номер (AJ99903141)
+  articleCode     String    @map("article_code") @db.Text // Код статьи (5970041)
+  articleName     String    @map("article_name") @db.Text // Название статьи
+  amountTotal     Decimal   @map("amount_total") @db.Decimal(14, 2) // Сумма
+  pdfUrl          String?   @map("pdf_url") @db.Text // URL для PDF
+
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  ecpAuth EcpAuth @relation(fields: [ecpAuthId], references: [id], onDelete: Cascade)
+
+  @@unique([ecpAuthId, externalId])
+  @@map("fines")
+  @@index([ecpAuthId])
+  @@index([externalId])
+  @@index([status])
+  @@index([vehicleNumber])
+  @@index([fullName])
+}

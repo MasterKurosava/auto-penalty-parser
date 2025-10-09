@@ -7,8 +7,11 @@ import { Toaster } from '@/components/ui/sonner'
 const inter = Inter({ subsets: ['latin', 'cyrillic'] })
 
 export const metadata: Metadata = {
-  title: 'Nuraly - Система работы со штрафами',
+  title: 'AFP - Система работы со штрафами',
   description: 'Веб-приложение для работы с штрафами через PSAP API',
+  icons: {
+    icon: '/logo.ico',
+  },
 }
 
 export default function RootLayout({

@@ -10,7 +10,7 @@ export interface PsapCookies {
 }
 
 export async function getPsapCookies(): Promise<PsapCookies> {
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
 
   return {
     uuid: cookieStore.get('psap-uuid')?.value,
@@ -25,7 +25,7 @@ export async function setPsapCookies(data: {
   token: string
   refreshToken?: string
 }) {
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   const options = {
     httpOnly: true,
     sameSite: 'lax' as const,
@@ -44,7 +44,7 @@ export async function setPsapCookies(data: {
 }
 
 export async function clearPsapCookies() {
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
 
   cookieStore.delete('psap-uuid')
   cookieStore.delete('psap-token')

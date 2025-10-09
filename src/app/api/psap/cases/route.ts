@@ -19,8 +19,6 @@ export async function GET(request: NextRequest) {
     const limit = searchParams.get('limit') || '10'
     const pageNum = searchParams.get('pageNum') || '1'
     const orderBy = searchParams.get('orderBy') || 'desc'
-    const dateFrom = searchParams.get('from')
-    const dateTo = searchParams.get('to')
 
     const params = new URLSearchParams({ pageNum, limit, orderBy })
 
@@ -45,7 +43,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: response.data,
-      filters: { dateFrom, dateTo, limit: parseInt(limit) },
     })
   } catch (error: any) {
     if (error.response?.status === 401 || error.response?.status === 403) {
@@ -64,4 +61,3 @@ export async function GET(request: NextRequest) {
     )
   }
 }
-

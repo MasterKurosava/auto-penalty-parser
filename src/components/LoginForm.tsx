@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,62 +13,40 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import { FormError, FormErrors } from '@/components/ui/form-error'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
-import { loginSchema, validateFormData, type LoginFormData } from '@/lib/validations'
 
-export function LoginForm() {
-  const [formData, setFormData] = useState<LoginFormData>({
+export const LoginForm = React.memo(function LoginForm() {
+  const [formData, setFormData] = useState({
     username: '',
     password: '',
   })
-  const [errors, setErrors] = useState<Record<string, string[]>>({})
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
-  const handleInputChange = (field: keyof LoginFormData, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
-
-    // Очищаем ошибку для этого поля при изменении
-    if (errors[field]) {
-      setErrors(prev => {
-        const newErrors = { ...prev }
-        delete newErrors[field]
-        return newErrors
-      })
-    }
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setErrors({})
     setIsLoading(true)
 
-    // Валидация формы
-    const validation = validateFormData(loginSchema, formData)
-    if (!validation.success) {
-      setErrors(validation.errors || {})
-      setIsLoading(false)
-      return
-    }
-
     try {
-      const response = await fetch('/api/login', {
+      const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(validation.data),
+        body: JSON.stringify(formData),
       })
 
-      if (response.ok) {
-        toast.success('Успешный вход')
-        router.push('/dashboard')
-      } else {
-        const data = await response.json()
+      const data = await response.json()
+
+      if (!response.ok) {
         toast.error(data.error || 'Неверный логин или пароль')
+        return
       }
-    } catch {
-      toast.error('Ошибка при входе')
+
+      toast.success('Успешный вход')
+      router.push('/dashboard')
+      router.refresh()
+    } catch (error) {
+      toast.error('Ошибка подключения к серверу')
     } finally {
       setIsLoading(false)
     }
@@ -79,7 +57,7 @@ export function LoginForm() {
       <CardHeader>
         <CardTitle>Вход в систему</CardTitle>
         <CardDescription>
-          Введите свои учетные данные для доступа
+          Введите логин и пароль для доступа
         </CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>
@@ -91,14 +69,11 @@ export function LoginForm() {
               type="text"
               placeholder="Введите логин"
               value={formData.username}
-              onChange={(e) => handleInputChange('username', e.target.value)}
+              onChange={(e) =>
+                setFormData({ ...formData, username: e.target.value })
+              }
               required
               disabled={isLoading}
-              aria-invalid={!!errors.username}
-              aria-describedby={errors.username ? 'username-error' : undefined}
-            />
-            <FormError
-              message={errors.username?.[0]}
             />
           </div>
           <div className="space-y-2">
@@ -108,25 +83,28 @@ export function LoginForm() {
               type="password"
               placeholder="Введите пароль"
               value={formData.password}
-              onChange={(e) => handleInputChange('password', e.target.value)}
+              onChange={(e) =>
+                setFormData({ ...formData, password: e.target.value })
+              }
               required
               disabled={isLoading}
-              aria-invalid={!!errors.password}
-              aria-describedby={errors.password ? 'password-error' : undefined}
-            />
-            <FormError
-              message={errors.password?.[0]}
             />
           </div>
         </CardContent>
-        <CardFooter>
+        <CardFooter className="flex-col gap-2">
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Войти
           </Button>
+          <div className="text-center text-sm">
+            Нет аккаунта?{' '}
+            <a href="/register" className="text-primary hover:underline">
+              Зарегистрироваться
+            </a>
+          </div>
         </CardFooter>
       </form>
     </Card>
   )
-}
+})
 

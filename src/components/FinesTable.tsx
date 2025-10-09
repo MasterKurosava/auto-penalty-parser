@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Card,
@@ -9,476 +9,332 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
-import { TableSkeleton, CardSkeleton } from '@/components/ui/skeleton'
-import * as Collapsible from '@radix-ui/react-collapsible'
-import { FileJson, FileSpreadsheet, CheckCircle2, XCircle, ArrowUpDown, ArrowUp, ArrowDown, FileText, ChevronDown, ChevronUp } from 'lucide-react'
-import { PsapCase } from '@/lib/types'
+import { ChevronUp, ChevronDown } from 'lucide-react'
+import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 import * as XLSX from 'xlsx'
-import { FinesCharts } from './FinesCharts'
+import { FinesAnalytics } from '@/components/FinesAnalytics'
+import { FinesTableSkeleton } from './FinesTableSkeleton'
+import { FinesFilters } from './FinesFilters'
+import { FinesTableHeader } from './FinesTableHeader'
+import { FinesTableBody } from './FinesTableBody'
 
-interface FinesTableProps {
-  cases: PsapCase[]
-  isLoading?: boolean
+interface Fine {
+  id: string
+  externalId: string
+  status: string
+  commitDate: string | null
+  decisionDate: string | null
+  fullName: string
+  vehicleNumber: string
+  serialNumber: string | null
+  articleCode: string
+  articleName: string
+  amountTotal: string
+  pdfUrl: string | null
+  ecpAuth: {
+    id: string
+    label: string | null
+    iinBin: string
+  }
+  createdAt: string
+  updatedAt: string
 }
 
-type SortField = 'paid' | 'commitDate' | 'grnz' | 'article' | 'amount'
-type SortDirection = 'asc' | 'desc' | null
+type SortField = 'commitDate' | 'decisionDate' | 'amountTotal' | 'status' | 'fullName' | 'vehicleNumber' | 'articleCode'
+type SortDirection = 'asc' | 'desc'
 
-export const FinesTable = React.memo(function FinesTable({ cases, isLoading = false }: FinesTableProps) {
-  const [sortField, setSortField] = useState<SortField | null>(null)
-  const [sortDirection, setSortDirection] = useState<SortDirection>(null)
-  const [isChartsExpanded, setIsChartsExpanded] = useState(true)
+export const FinesTable = React.memo(function FinesTable() {
+  const [allFines, setAllFines] = useState<Fine[]>([])
+  const [total, setTotal] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
+  const [ecpAuths, setEcpAuths] = useState<Array<{ id: string; label: string | null; iinBin: string }>>([])
+  const [selectedFines, setSelectedFines] = useState<Set<string>>(new Set())
   const [isTableExpanded, setIsTableExpanded] = useState(true)
-  const exportToJson = useCallback(() => {
-    const dataStr = JSON.stringify(cases, null, 2)
-    const dataBlob = new Blob([dataStr], { type: 'application/json' })
-    const url = URL.createObjectURL(dataBlob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `fines-${Date.now()}.json`
-    link.click()
-    URL.revokeObjectURL(url)
-  }, [cases])
+  const [displayCount, setDisplayCount] = useState(20)
 
-  const exportToExcel = useCallback(() => {
-    if (cases.length === 0) return
+  const [ecpAuthId, setEcpAuthId] = useState('all')
+  const [status, setStatus] = useState('all')
+  const [vehicleNumber, setVehicleNumber] = useState('')
+  const [vehicleNumberDebounced, setVehicleNumberDebounced] = useState('')
+  const [search, setSearch] = useState('')
+  const [searchDebounced, setSearchDebounced] = useState('')
+  const [dateRange, setDateRange] = useState<{ from: Date | null; to: Date | null }>({ from: null, to: null })
+  const [sortField, setSortField] = useState<SortField>('commitDate')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
 
-    const exportData = cases.map((c) => ({
-      'Статус': c.paid === 1 ? 'Оплачен' : c.paid === 3 ? 'Частично оплачен' : 'Не оплачен',
-      'Дата нарушения': formatDate(c.commitDate),
-      'Фамилия': c.av1f?.lastName || '',
-      'Имя': c.av1f?.firstName || '',
-      'Отчество': c.av1f?.middleName || '',
-      'ИИН': c.av1f?.iin || '',
-      'Госномер': c.av1o?.grnz || '',
-      'СРТС': c.av1o?.srtsNumber || '',
-      'Код статьи': c.article?.code || '',
-      'Описание нарушения': c.article?.nameRu || '',
-      'Сумма штрафа': c.lastAp?.totalAmount || '',
-      'Льгота 50%': c.lastAp?.halfAmount || '',
-      'Номер дела': c.caseNumber || '',
-      'ID': c.id || '',
-      'RID': c.rid || '',
-    }))
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchDebounced(search)
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [search])
 
-    const ws = XLSX.utils.json_to_sheet(exportData)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setVehicleNumberDebounced(vehicleNumber)
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [vehicleNumber])
 
-    const colWidths = Object.keys(exportData[0] || {}).map((key) => {
-      const maxLength = Math.max(
-        key.length,
-        ...exportData.map((row) => String(row[key as keyof typeof row] || '').length)
-      )
-      return { wch: Math.min(maxLength + 2, 50) }
-    })
-    ws['!cols'] = colWidths
-
-    const headerRange = XLSX.utils.decode_range(ws['!ref'] || 'A1')
-    for (let C = headerRange.s.c; C <= headerRange.e.c; ++C) {
-      const address = XLSX.utils.encode_col(C) + '1'
-      if (!ws[address]) continue
-      ws[address].s = {
-        font: { bold: true },
-        fill: { fgColor: { rgb: 'E0E0E0' } },
-        alignment: { horizontal: 'center', vertical: 'center' }
+  useEffect(() => {
+    let mounted = true
+    const loadEcpAuths = async () => {
+      try {
+        const response = await fetch('/api/ecp/list')
+        if (response.ok && mounted) {
+          const data = await response.json()
+          setEcpAuths(data.ecpAuths || [])
+        }
+      } catch (error) {
       }
     }
+    loadEcpAuths()
+    return () => { mounted = false }
+  }, [])
 
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Штрафы')
-
-    XLSX.writeFile(wb, `штрафы-${new Date().toISOString().split('T')[0]}.xlsx`)
-  }, [cases])
-
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return '-'
+  const loadAllFines = useCallback(async () => {
+    setIsLoading(true)
     try {
-      return format(new Date(dateStr), 'dd.MM.yyyy HH:mm', { locale: ru })
-    } catch {
-      return dateStr
-    }
-  }
+      const params = new URLSearchParams({
+        limit: '10000',
+        offset: '0',
+        sortField,
+        sortDirection,
+      })
 
-  const formatAmount = (amount: string | null | undefined) => {
-    if (!amount) return '-'
-    return `${parseInt(amount).toLocaleString('ru-KZ')} ₸`
-  }
-
-  const getFio = (c: PsapCase) => {
-    if (!c.av1f) return '-'
-    return `${c.av1f.lastName} ${c.av1f.firstName} ${c.av1f.middleName}`
-  }
-
-  const openPdf = (rid: string) => {
-    const pdfUrl = `https://erap-public.kgp.kz/psap/api/pdf/showpdf/av/${rid}`
-    window.open(pdfUrl, '_blank', 'noopener,noreferrer')
-  }
-
-  const handleSort = useCallback((field: SortField) => {
-    if (sortField === field) {
-      if (sortDirection === 'asc') {
-        setSortDirection('desc')
-      } else if (sortDirection === 'desc') {
-        setSortDirection(null)
-        setSortField(null)
-      } else {
-        setSortDirection('asc')
+      const response = await fetch(`/api/fines/list?${params}`)
+      if (!response.ok) {
+        throw new Error('Failed to load fines')
       }
-    } else {
-      setSortField(field)
-      setSortDirection('asc')
+
+      const data = await response.json()
+      setAllFines(data.fines)
+      setTotal(data.total)
+      setDisplayCount(20)
+    } catch (error) {
+      toast.error('Ошибка загрузки штрафов')
+    } finally {
+      setIsLoading(false)
     }
   }, [sortField, sortDirection])
 
-  const sortedCases = useMemo(() => {
-    if (!sortField || !sortDirection) return cases
+  const filteredFines = useMemo(() => {
+    let filtered = [...allFines]
 
-    return [...cases].sort((a, b) => {
-      let aVal: any
-      let bVal: any
+    if (ecpAuthId && ecpAuthId !== 'all') {
+      filtered = filtered.filter(f => f.ecpAuth.id === ecpAuthId)
+    }
 
-      switch (sortField) {
+    if (status && status !== 'all') {
+      filtered = filtered.filter(f => f.status === status)
+    }
+
+    if (vehicleNumberDebounced.trim()) {
+      filtered = filtered.filter(f =>
+        f.vehicleNumber.toLowerCase().includes(vehicleNumberDebounced.toLowerCase())
+      )
+    }
+
+    if (searchDebounced.trim()) {
+      const searchLower = searchDebounced.toLowerCase()
+      filtered = filtered.filter(f =>
+        f.externalId.toLowerCase().includes(searchLower) ||
+        f.fullName.toLowerCase().includes(searchLower) ||
+        f.vehicleNumber.toLowerCase().includes(searchLower) ||
+        (f.serialNumber && f.serialNumber.toLowerCase().includes(searchLower)) ||
+        f.articleCode.toLowerCase().includes(searchLower) ||
+        f.articleName.toLowerCase().includes(searchLower) ||
+        f.ecpAuth.iinBin.toLowerCase().includes(searchLower)
+      )
+    }
+
+    if (dateRange.from || dateRange.to) {
+      filtered = filtered.filter(f => {
+        if (!f.commitDate) return false
+        const commitDate = new Date(f.commitDate)
+
+        if (dateRange.from && commitDate < dateRange.from) return false
+        if (dateRange.to && commitDate > dateRange.to) return false
+
+        return true
+      })
+    }
+
+    return filtered
+  }, [allFines, ecpAuthId, status, vehicleNumberDebounced, searchDebounced, dateRange])
+
+  useEffect(() => {
+    setDisplayCount(20)
+  }, [ecpAuthId, status, vehicleNumberDebounced, searchDebounced, dateRange])
+
+  const displayedFines = useMemo(() => {
+    return filteredFines.slice(0, displayCount)
+  }, [filteredFines, displayCount])
+
+  const hasMore = displayCount < filteredFines.length
+
+  const loadMore = useCallback(() => {
+    if (hasMore) {
+      setDisplayCount(prev => Math.min(prev + 20, filteredFines.length))
+    }
+  }, [hasMore, filteredFines.length])
+
+  useEffect(() => {
+    loadAllFines()
+    setSelectedFines(new Set())
+  }, [loadAllFines])
+
+  useEffect(() => {
+    const handleSync = () => loadAllFines()
+    window.addEventListener('fines-synced', handleSync)
+    return () => window.removeEventListener('fines-synced', handleSync)
+  }, [loadAllFines])
+
+  const handleSort = useCallback((field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortField(field)
+      setSortDirection('desc')
+    }
+  }, [sortField])
+
+  const getStatusBadge = useCallback((status: string) => {
+    switch (status.toLowerCase()) {
         case 'paid':
-          aVal = a.paid
-          bVal = b.paid
-          break
-        case 'commitDate':
-          aVal = new Date(a.commitDate).getTime()
-          bVal = new Date(b.commitDate).getTime()
-          break
-        case 'grnz':
-          aVal = a.av1o?.grnz || ''
-          bVal = b.av1o?.grnz || ''
-          break
-        case 'article':
-          aVal = a.article?.code || ''
-          bVal = b.article?.code || ''
-          break
-        case 'amount':
-          aVal = parseInt(a.lastAp?.totalAmount || '0')
-          bVal = parseInt(b.lastAp?.totalAmount || '0')
-          break
+        return <Badge variant="default" className="bg-emerald-500 text-white font-medium whitespace-nowrap">
+          Оплачено
+        </Badge>
+      case 'unpaid':
+        return <Badge variant="destructive" className="bg-red-500/85 text-white font-medium whitespace-nowrap">
+          Не оплачено
+        </Badge>
+      case 'partially_paid':
+        return <Badge variant="secondary" className="bg-amber-500 text-white font-medium whitespace-nowrap">
+          Частично оплачено
+        </Badge>
         default:
-          return 0
+        return <Badge variant="secondary">{status || 'Неизвестно'}</Badge>
+    }
+  }, [])
+
+  const handleSelectAll = useCallback((checked: boolean) => {
+    if (checked) {
+      setSelectedFines(new Set(displayedFines.map(f => f.id)))
+    } else {
+      setSelectedFines(new Set())
+    }
+  }, [displayedFines])
+
+  const handleSelectFine = useCallback((fineId: string, checked: boolean) => {
+    setSelectedFines(prev => {
+      const newSelected = new Set(prev)
+      if (checked) {
+        newSelected.add(fineId)
+      } else {
+        newSelected.delete(fineId)
       }
-
-      if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
-      if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
-      return 0
+      return newSelected
     })
-  }, [cases, sortField, sortDirection])
+  }, [])
 
-  const SortIcon = ({ field }: { field: SortField }) => {
-    if (sortField !== field) {
-      return <ArrowUpDown className="h-4 w-4 ml-1 opacity-50" />
+  const exportToExcel = useCallback((data: Fine[], filename: string) => {
+    const exportData = data.map(fine => ({
+      'Статус': fine.status === 'paid' ? 'Оплачено' : fine.status === 'partially_paid' ? 'Частично оплачено' : 'Не оплачено',
+      'Совершено': fine.commitDate ? format(new Date(fine.commitDate), 'dd.MM.yyyy HH:mm') : '',
+      'Предписание': fine.decisionDate ? format(new Date(fine.decisionDate), 'dd.MM.yyyy') : '',
+      'ФИО/Компания': fine.fullName,
+      'Госномер': fine.vehicleNumber,
+      'Серийный номер': fine.serialNumber || '',
+      'Статья': fine.articleCode,
+      'Описание статьи': fine.articleName,
+      'Сумма': fine.amountTotal ? `${fine.amountTotal} ₸` : '',
+      'ИИН/БИН': fine.ecpAuth.iinBin,
+    }))
+
+    const ws = XLSX.utils.json_to_sheet(exportData)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Штрафы')
+    XLSX.writeFile(wb, filename)
+  }, [])
+
+  const handleExportSelected = useCallback(() => {
+    if (selectedFines.size === 0) {
+      toast.error('Выберите штрафы для экспорта')
+      return
     }
-    if (sortDirection === 'asc') {
-      return <ArrowUp className="h-4 w-4 ml-1" />
-    }
-    if (sortDirection === 'desc') {
-      return <ArrowDown className="h-4 w-4 ml-1" />
-    }
-    return <ArrowUpDown className="h-4 w-4 ml-1 opacity-50" />
+
+    const selectedData = displayedFines.filter(f => selectedFines.has(f.id))
+    exportToExcel(selectedData, `Штрафы_выделенные_${format(new Date(), 'dd.MM.yyyy')}.xlsx`)
+    toast.success(`Экспортировано выделенных штрафов: ${selectedFines.size}`)
+  }, [selectedFines, displayedFines, exportToExcel])
+
+  const handleExportAll = useCallback(() => {
+    exportToExcel(filteredFines, `Штрафы_все_${format(new Date(), 'dd.MM.yyyy')}.xlsx`)
+    toast.success(`Экспортировано всех штрафов: ${filteredFines.length}`)
+  }, [filteredFines, exportToExcel])
+
+
+  const selectedFinesTotal = useMemo(() => {
+    if (selectedFines.size === 0) return 0
+    return displayedFines
+      .filter(f => selectedFines.has(f.id))
+      .reduce((sum, f) => sum + parseFloat(f.amountTotal || '0'), 0)
+  }, [selectedFines, displayedFines])
+
+
+  if (isLoading && allFines.length === 0) {
+    return <FinesTableSkeleton />
   }
 
-  const totalAmount = cases.reduce((sum, c) => sum + (parseInt(c.lastAp?.totalAmount || '0')), 0)
-
   return (
-    <div className="space-y-4">
-      <Collapsible.Root open={isChartsExpanded} onOpenChange={setIsChartsExpanded}>
-        <Card>
-          <CardHeader>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <CardTitle className="text-lg sm:text-xl">Аналитика и графики</CardTitle>
-                <CardDescription className="text-sm">Визуализация данных по штрафам</CardDescription>
-              </div>
-              <Collapsible.Trigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="gap-2 w-full sm:w-auto"
-                >
-                  {isChartsExpanded ? (
-                    <>
-                      <span>Свернуть</span>
-                      <ChevronUp className="h-4 w-4" />
-                    </>
-                  ) : (
-                    <>
-                      <span>Развернуть</span>
-                      <ChevronDown className="h-4 w-4" />
-                    </>
-                  )}
-                </Button>
-              </Collapsible.Trigger>
-            </div>
-          </CardHeader>
-          <Collapsible.Content className="CollapsibleContent">
-            <CardContent>
-              <FinesCharts cases={cases} />
-            </CardContent>
-          </Collapsible.Content>
-        </Card>
-      </Collapsible.Root>
+    <div className="space-y-8">
+      <FinesAnalytics fines={filteredFines} selectedFines={selectedFines} />
 
-      <Collapsible.Root open={isTableExpanded} onOpenChange={setIsTableExpanded}>
         <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex-1">
-              <CardTitle className="text-lg sm:text-xl">Список штрафов</CardTitle>
-              <CardDescription className="text-sm">
-                Общая сумма: {totalAmount.toLocaleString('ru-KZ')} ₸
-              </CardDescription>
-            </div>
+          <FinesTableHeader
+            totalFines={filteredFines.length}
+            selectedFines={selectedFines}
+            selectedFinesTotal={selectedFinesTotal}
+            isTableExpanded={isTableExpanded}
+            isLoading={isLoading}
+            onToggleExpanded={() => setIsTableExpanded(!isTableExpanded)}
+            onExportAll={handleExportAll}
+            onExportSelected={handleExportSelected}
+          />
+          <CardContent
+            className={`transition-all duration-300 overflow-hidden ${
+              isTableExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
+            }`}
+          >
+            <FinesFilters
+              search={search}
+              onSearchChange={setSearch}
+              dateRange={dateRange}
+              onDateRangeChange={setDateRange}
+              status={status}
+              onStatusChange={setStatus}
+              ecpAuthId={ecpAuthId}
+              onEcpAuthChange={setEcpAuthId}
+              ecpAuths={ecpAuths}
+            />
 
-            <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={exportToExcel}
-                className="gap-1 flex-1 sm:flex-none"
-              >
-                <FileSpreadsheet className="h-4 w-4" />
-                <span className="hidden sm:inline">Excel</span>
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={exportToJson}
-                className="gap-1 flex-1 sm:flex-none"
-              >
-                <FileJson className="h-4 w-4" />
-                <span className="hidden sm:inline">JSON</span>
-              </Button>
-              <Collapsible.Trigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="gap-1 w-full sm:w-auto"
-                >
-                  {isTableExpanded ? (
-                    <>
-                      <span>Свернуть</span>
-                      <ChevronUp className="h-4 w-4" />
-                    </>
-                  ) : (
-                    <>
-                      <span>Развернуть</span>
-                      <ChevronDown className="h-4 w-4" />
-                    </>
-                  )}
-                </Button>
-              </Collapsible.Trigger>
-            </div>
-          </div>
-        </CardHeader>
-        <Collapsible.Content className="CollapsibleContent">
-          <CardContent className="px-0 sm:px-6">
-            {isLoading ? (
-              <div className="p-6">
-                <TableSkeleton rows={5} columns={7} />
-              </div>
-            ) : (
-              <div className="rounded-md border overflow-x-auto">
-                <Table role="table" aria-label="Список штрафов">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleSort('paid')}
-                      className="h-8 px-2 flex items-center"
-                    >
-                      Статус
-                      <SortIcon field="paid" />
-                    </Button>
-                  </TableHead>
-                  <TableHead>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleSort('commitDate')}
-                      className="h-8 px-2 flex items-center"
-                    >
-                      Дата
-                      <SortIcon field="commitDate" />
-                    </Button>
-                  </TableHead>
-                  <TableHead>ФИО</TableHead>
-                  <TableHead>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleSort('grnz')}
-                      className="h-8 px-2 flex items-center"
-                    >
-                      Госномер
-                      <SortIcon field="grnz" />
-                    </Button>
-                  </TableHead>
-                  <TableHead>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleSort('article')}
-                      className="h-8 px-2 flex items-center"
-                    >
-                      Статья
-                      <SortIcon field="article" />
-                    </Button>
-                  </TableHead>
-                  <TableHead>Описание</TableHead>
-                  <TableHead className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleSort('amount')}
-                      className="h-8 px-2 flex items-center ml-auto"
-                    >
-                      Сумма
-                      <SortIcon field="amount" />
-                    </Button>
-                  </TableHead>
-                  <TableHead className="text-right">Льгота 50%</TableHead>
-                  <TableHead className="text-center">Действия</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {sortedCases.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={9} className="text-center text-muted-foreground h-32">
-                      Нет данных
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  sortedCases.map((c, idx) => (
-                    <TableRow
-                      key={c.id || idx}
-                      className={
-                        c.paid === 2 || c.paid === 0
-                          ? 'bg-red-50/50 dark:bg-red-950/10'
-                          : c.paid === 3
-                          ? 'bg-orange-50/50 dark:bg-orange-950/10'
-                          : ''
-                      }
-                    >
-                      <TableCell>
-                        {c.paid === 1 ? (
-                          <Badge variant="default" className="gap-1 bg-green-600">
-                            <CheckCircle2 className="h-3 w-3" />
-                            Оплачен
-                          </Badge>
-                        ) : c.paid === 3 ? (
-                          <Badge variant="default" className="gap-1 bg-orange-600">
-                            <XCircle className="h-3 w-3" />
-                            Частично
-                          </Badge>
-                        ) : (
-                          <Badge variant="destructive" className="gap-1">
-                            <XCircle className="h-3 w-3" />
-                            Не оплачен
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {formatDate(c.commitDate)}
-                      </TableCell>
-                      <TableCell className="text-sm font-medium">
-                        {getFio(c)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <div className="font-mono font-bold text-sm">
-                            {c.av1o?.grnz || '-'}
-                          </div>
-                          <div className="font-mono text-xs text-muted-foreground">
-                            {c.av1o?.srtsNumber || '-'}
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="font-mono text-xs">
-                          {c.article?.code || '-'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="max-w-xs">
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <div className="text-sm line-clamp-2 cursor-help hover:text-primary transition-colors">
-                              {c.article?.nameRu || '-'}
-                            </div>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-80">
-                            <div className="space-y-2">
-                              <h4 className="font-medium text-sm">Полное описание нарушения</h4>
-                              <p className="text-sm text-muted-foreground">
-                                {c.article?.nameRu || 'Описание отсутствует'}
-                              </p>
-                              {c.article?.code && (
-                                <div className="pt-2 border-t">
-                                  <span className="text-xs text-muted-foreground">
-                                    Статья: {c.article.code}
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-                      </TableCell>
-                      <TableCell className="text-right font-semibold">
-                        {formatAmount(c.lastAp?.totalAmount)}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {c.lastAp?.halfAmount ? (
-                          <span className="text-green-600 font-semibold">
-                            {formatAmount(c.lastAp.halfAmount)}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => openPdf(c.rid)}
-                          className="h-8 gap-1"
-                          title="Открыть PDF постановления"
-                        >
-                          <FileText className="h-4 w-4" />
-                          PDF
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-                </TableBody>
-              </Table>
-              </div>
-            )}
+            <FinesTableBody
+              displayedFines={displayedFines}
+              filteredFines={filteredFines}
+              selectedFines={selectedFines}
+              hasMore={hasMore}
+              onLoadMore={loadMore}
+              onSelectAll={handleSelectAll}
+              onSelectFine={handleSelectFine}
+              onSort={handleSort}
+              getStatusBadge={getStatusBadge}
+            />
           </CardContent>
-        </Collapsible.Content>
       </Card>
-      </Collapsible.Root>
     </div>
   )
 })
-
