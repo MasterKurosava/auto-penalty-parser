@@ -20,6 +20,7 @@ interface Fine {
   status: string
   commitDate: string | null
   decisionDate: string | null
+  caseNumber: string | null
   fullName: string
   vehicleNumber: string
   serialNumber: string | null
@@ -114,6 +115,7 @@ export const FinesTableBody = React.memo(function FinesTableBody({
                   <ArrowUpDown className="ml-2 h-4 w-4" />
                 </Button>
               </TableHead>
+              <TableHead>Номер дела</TableHead>
               <TableHead>
                 <Button variant="ghost" size="sm" onClick={() => onSort('fullName')}>
                   ФИО/Компания

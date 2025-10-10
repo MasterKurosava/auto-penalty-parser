@@ -18,7 +18,7 @@ export async function extractDecisionDateFromPdf(
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       },
       httpsAgent: agent,
-      timeout: 30000,
+      timeout: 2000,
     })
 
     const buffer = Buffer.from(response.data)
@@ -43,25 +43,35 @@ export async function extractDecisionDateFromPdf(
     }
 
     const allDatesPattern = /\b(\d{1,2}\.\d{1,2}\.\d{4})\b/g
-    const matches = text.matchAll(allDatesPattern)
+    const matches = Array.from(text.matchAll(allDatesPattern))
+    const validDates: Date[] = []
 
     for (const match of matches) {
       const dateString = match[1]
       const date = parseKazakhDate(dateString)
       if (date && isValidDate(date)) {
         const now = new Date()
-        const yearAgo = new Date(now.getFullYear() - 5, now.getMonth(), now.getDate())
-        const yearFromNow = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate())
+        const fiveYearsAgo = new Date(now.getFullYear() - 5, now.getMonth(), now.getDate())
+        const oneYearFromNow = new Date(now.getFullYear() + 1, now.getMonth(), now.getDate())
 
-        if (date >= yearAgo && date <= yearFromNow) {
-          return date
+        if (date >= fiveYearsAgo && date <= oneYearFromNow) {
+          validDates.push(date)
         }
       }
     }
 
+    if (validDates.length > 0) {
+      return validDates[0]
+    }
+
     return null
   } catch (error: any) {
-    console.error('Error extracting decision date from PDF:', error)
+    if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+      return null
+    }
+    if (error.response?.status === 401 || error.response?.status === 403) {
+      return null
+    }
     return null
   }
 }
@@ -107,4 +117,3 @@ export async function batchExtractDecisionDates(
 
   return results
 }
-

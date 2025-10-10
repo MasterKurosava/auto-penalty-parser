@@ -14,7 +14,7 @@ import { ChevronUp, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import * as XLSX from 'xlsx'
+import * as XLSX from 'xlsx-js-style'
 import { FinesAnalytics } from '@/components/FinesAnalytics'
 import { FinesTableSkeleton } from './FinesTableSkeleton'
 import { FinesFilters } from './FinesFilters'
@@ -27,6 +27,7 @@ interface Fine {
   status: string
   commitDate: string | null
   decisionDate: string | null
+  caseNumber: string | null
   fullName: string
   vehicleNumber: string
   serialNumber: string | null
@@ -145,6 +146,7 @@ export const FinesTable = React.memo(function FinesTable() {
         f.fullName.toLowerCase().includes(searchLower) ||
         f.vehicleNumber.toLowerCase().includes(searchLower) ||
         (f.serialNumber && f.serialNumber.toLowerCase().includes(searchLower)) ||
+        (f.caseNumber && f.caseNumber.toLowerCase().includes(searchLower)) ||
         f.articleCode.toLowerCase().includes(searchLower) ||
         f.articleName.toLowerCase().includes(searchLower) ||
         f.ecpAuth.iinBin.toLowerCase().includes(searchLower)
@@ -242,10 +244,16 @@ export const FinesTable = React.memo(function FinesTable() {
   }, [])
 
   const exportToExcel = useCallback((data: Fine[], filename: string) => {
+    if (data.length === 0) {
+      toast.error('Нет данных для экспорта')
+      return
+    }
+
     const exportData = data.map(fine => ({
       'Статус': fine.status === 'paid' ? 'Оплачено' : fine.status === 'partially_paid' ? 'Частично оплачено' : 'Не оплачено',
       'Совершено': fine.commitDate ? format(new Date(fine.commitDate), 'dd.MM.yyyy HH:mm') : '',
       'Предписание': fine.decisionDate ? format(new Date(fine.decisionDate), 'dd.MM.yyyy') : '',
+      'Номер дела': fine.caseNumber || '',
       'ФИО/Компания': fine.fullName,
       'Госномер': fine.vehicleNumber,
       'Серийный номер': fine.serialNumber || '',
@@ -256,9 +264,166 @@ export const FinesTable = React.memo(function FinesTable() {
     }))
 
     const ws = XLSX.utils.json_to_sheet(exportData)
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1')
+
+    const columnHeaders = Object.keys(exportData[0] || {})
+    const colWidths = columnHeaders.map((header, colIndex) => {
+      let maxWidth = header.length
+
+      exportData.forEach(row => {
+        const cellValue = String(row[header as keyof typeof row] || '')
+        maxWidth = Math.max(maxWidth, cellValue.length)
+      })
+
+      return { wch: Math.min(Math.max(maxWidth + 3, 10), 50) }
+    })
+
+    ws['!cols'] = colWidths
+
+    const headerStyle = {
+      font: {
+        bold: true,
+        sz: 12,
+        color: { rgb: "FFFFFF" },
+        name: "Arial"
+      },
+      fill: {
+        fgColor: { rgb: "4F46E5" }
+      },
+      alignment: {
+        horizontal: "center",
+        vertical: "center",
+        wrapText: true
+      },
+      border: {
+        top: { style: "thin", color: { rgb: "FFFFFF" } },
+        bottom: { style: "thin", color: { rgb: "FFFFFF" } },
+        left: { style: "thin", color: { rgb: "FFFFFF" } },
+        right: { style: "thin", color: { rgb: "FFFFFF" } }
+      }
+    }
+
+    for (let C = range.s.c; C <= range.e.c; ++C) {
+      const cellAddress = XLSX.utils.encode_cell({ r: 0, c: C })
+      if (ws[cellAddress]) {
+        ws[cellAddress].s = headerStyle
+      }
+    }
+
+    for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        const cellAddress = XLSX.utils.encode_cell({ r: R, c: C })
+        if (!ws[cellAddress]) continue
+
+        const isStatusColumn = C === 0
+        const isAmountColumn = C === 9
+        const isEvenRow = R % 2 === 0
+
+        let bgColor = isEvenRow ? { rgb: "F9FAFB" } : { rgb: "FFFFFF" }
+
+        if (isStatusColumn) {
+          const statusValue = ws[cellAddress].v
+          if (statusValue === 'Оплачено') {
+            bgColor = { rgb: "D1FAE5" }
+          } else if (statusValue === 'Не оплачено') {
+            bgColor = { rgb: "FEE2E2" }
+          } else if (statusValue === 'Частично оплачено') {
+            bgColor = { rgb: "FEF3C7" }
+          }
+        }
+
+        ws[cellAddress].s = {
+          font: {
+            sz: 11,
+            name: "Arial"
+          },
+          fill: {
+            fgColor: bgColor
+          },
+          alignment: {
+            horizontal: isAmountColumn ? "right" : (isStatusColumn ? "center" : "left"),
+            vertical: "center",
+            wrapText: false
+          },
+          border: {
+            top: { style: "thin", color: { rgb: "E5E7EB" } },
+            bottom: { style: "thin", color: { rgb: "E5E7EB" } },
+            left: { style: "thin", color: { rgb: "E5E7EB" } },
+            right: { style: "thin", color: { rgb: "E5E7EB" } }
+          }
+        }
+      }
+    }
+
+    const totalRow = range.e.r + 2
+    const totalAmount = data.reduce((sum, fine) => sum + parseFloat(fine.amountTotal || '0'), 0)
+
+    const totalLabelCell = XLSX.utils.encode_cell({ r: totalRow, c: 8 })
+    ws[totalLabelCell] = {
+      v: 'ИТОГО:',
+      t: 's',
+      s: {
+        font: {
+          bold: true,
+          sz: 13,
+          name: "Arial"
+        },
+        alignment: {
+          horizontal: "right",
+          vertical: "center"
+        },
+        fill: {
+          fgColor: { rgb: "F3F4F6" }
+        },
+        border: {
+          top: { style: "medium", color: { rgb: "374151" } },
+          bottom: { style: "medium", color: { rgb: "374151" } },
+          left: { style: "thin", color: { rgb: "374151" } },
+          right: { style: "thin", color: { rgb: "374151" } }
+        }
+      }
+    }
+
+    const totalAmountCell = XLSX.utils.encode_cell({ r: totalRow, c: 9 })
+    ws[totalAmountCell] = {
+      v: `${totalAmount.toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₸`,
+      t: 's',
+      s: {
+        font: {
+          bold: true,
+          sz: 13,
+          color: { rgb: "DC2626" },
+          name: "Arial"
+        },
+        fill: {
+          fgColor: { rgb: "FEF3C7" }
+        },
+        alignment: {
+          horizontal: "right",
+          vertical: "center"
+        },
+        border: {
+          top: { style: "medium", color: { rgb: "374151" } },
+          bottom: { style: "medium", color: { rgb: "374151" } },
+          left: { style: "thin", color: { rgb: "374151" } },
+          right: { style: "thin", color: { rgb: "374151" } }
+        }
+      }
+    }
+
+    range.e.r = totalRow
+    ws['!ref'] = XLSX.utils.encode_range(range)
+
+    ws['!freeze'] = { xSplit: 0, ySplit: 1 }
+
+    ws['!autofilter'] = { ref: `A1:${XLSX.utils.encode_col(range.e.c)}${range.e.r - 1}` }
+
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Штрафы')
+
     XLSX.writeFile(wb, filename)
+
+    toast.success('Файл Excel успешно создан!')
   }, [])
 
   const handleExportSelected = useCallback(() => {

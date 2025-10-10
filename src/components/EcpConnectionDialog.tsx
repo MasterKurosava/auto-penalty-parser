@@ -36,16 +36,13 @@ export const EcpConnectionDialog = React.memo(function EcpConnectionDialog({
     setIsConnecting(true)
 
     try {
-      // Step 1: Connect to NCALayer
       const client = new NCALayerClient()
       await client.connect()
 
-      // Step 2: Get access UUID from PSAP
       const uuidResponse = await fetch('/api/psap/access-uuid')
       if (!uuidResponse.ok) throw new Error('Ошибка получения UUID')
       const { guid } = await uuidResponse.json()
 
-      // Step 3: Sign XML with certificate
       const xml = `<auth><guid>${guid}</guid></auth>`
       let signedXml
 
@@ -64,7 +61,6 @@ export const EcpConnectionDialog = React.memo(function EcpConnectionDialog({
         throw new Error('Ошибка подписания: ' + (signError.message || 'Неизвестная ошибка'))
       }
 
-      // Step 4: Authenticate with PSAP (send signed XML)
       const authResponse = await fetch('/api/psap/auth-by-uuid', {
         method: 'POST',
         headers: { 'Content-Type': 'application/xml' },
@@ -78,9 +74,6 @@ export const EcpConnectionDialog = React.memo(function EcpConnectionDialog({
 
       const authData = await authResponse.json()
 
-      // authData contains: { uuid, token, refreshToken, id, iin }
-
-      // Step 5: Save authentication to our database
       const saveResponse = await fetch('/api/ecp/connect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -97,7 +90,6 @@ export const EcpConnectionDialog = React.memo(function EcpConnectionDialog({
       if (!saveResponse.ok) {
         const error = await saveResponse.json()
 
-        // If unauthorized, redirect to login
         if (saveResponse.status === 401) {
           toast.error('Сессия истекла. Пожалуйста, войдите снова.')
           window.location.href = '/login'

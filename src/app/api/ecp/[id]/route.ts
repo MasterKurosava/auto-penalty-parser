@@ -4,7 +4,6 @@ import { prisma } from '@/lib/db'
 import { ecpUpdateSchema } from '@/lib/auth-validations'
 import { ZodError } from 'zod'
 
-// Update ECP auth (label, isActive)
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -14,10 +13,8 @@ export async function PATCH(
     const ecpAuthId = params.id
     const body = await request.json()
 
-    // Validate input
     const data = ecpUpdateSchema.parse(body)
 
-    // Check ownership
     const ecpAuth = await prisma.ecpAuth.findFirst({
       where: {
         id: ecpAuthId,
@@ -32,7 +29,6 @@ export async function PATCH(
       )
     }
 
-    // Update
     const updated = await prisma.ecpAuth.update({
       where: { id: ecpAuthId },
       data: {
@@ -72,7 +68,6 @@ export async function PATCH(
   }
 }
 
-// Delete ECP auth
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -81,7 +76,6 @@ export async function DELETE(
     const user = await requireAuth()
     const ecpAuthId = params.id
 
-    // Check ownership
     const ecpAuth = await prisma.ecpAuth.findFirst({
       where: {
         id: ecpAuthId,
@@ -96,7 +90,6 @@ export async function DELETE(
       )
     }
 
-    // Delete (cascade will delete related fines)
     await prisma.ecpAuth.delete({
       where: { id: ecpAuthId },
     })

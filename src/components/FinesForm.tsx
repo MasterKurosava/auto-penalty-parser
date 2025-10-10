@@ -35,7 +35,6 @@ export const FinesForm = React.memo(function FinesForm() {
 
       const data = await response.json()
 
-      // Проверяем, есть ли невалидные ЭЦП
       const invalidResults = data.results?.filter((r: any) => !r.success && r.invalidated) || []
 
       if (invalidResults.length > 0) {

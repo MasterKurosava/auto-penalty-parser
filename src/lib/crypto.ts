@@ -53,4 +53,3 @@ export async function decryptToken(encrypted: Buffer | Uint8Array): Promise<stri
 
   return sodium.to_string(decrypted)
 }
-

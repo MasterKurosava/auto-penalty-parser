@@ -31,14 +31,13 @@ export async function POST(request: NextRequest) {
       const updatedAuth = await prisma.ecpAuth.update({
         where: { id: existingAuth.id },
         data: {
-          // Если label передан (не null и не undefined), обновляем его, иначе сохраняем старое
           ...(data.label !== null && data.label !== undefined ? { label: data.label } : {}),
           authTokenEnc,
           refreshTokenEnc,
           uuidEnc,
           psapId: data.psapId,
           isValid: true,
-          validUntil: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+          validUntil: new Date(Date.now() + 24 * 60 * 60 * 1000),
           updatedAt: new Date(),
         },
       })

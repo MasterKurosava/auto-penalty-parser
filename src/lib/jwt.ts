@@ -23,12 +23,6 @@ function getPublicKey(): Uint8Array {
   return new TextEncoder().encode(pem)
 }
 
-/**
- * Create a JWT token for user session
- * @param userId - User's unique ID
- * @param username - User's username
- * @param expiresIn - Token expiration (default: 30 days)
- */
 export async function createToken(
   userId: string,
   username: string,
@@ -108,4 +102,3 @@ async function importPublicKey(keyData: Uint8Array): Promise<CryptoKey> {
     ['verify']
   )
 }
-

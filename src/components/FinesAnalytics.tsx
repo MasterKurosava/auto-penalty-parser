@@ -25,6 +25,7 @@ interface Fine {
   status: string
   commitDate: string | null
   decisionDate: string | null
+  caseNumber: string | null
   fullName: string
   vehicleNumber: string
   serialNumber: string | null

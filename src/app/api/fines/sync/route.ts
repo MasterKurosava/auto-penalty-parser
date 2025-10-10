@@ -55,27 +55,44 @@ export async function POST(request: NextRequest) {
           `psap-uuid=${uuid}`,
         ].join('; ')
 
-        const response = await axios.get(
-          'https://erap-public.kgp.kz/psap/api/cases/load/?pageNum=1&limit=100&orderBy=desc',
-          {
-            headers: {
-              'Authorization': `Bearer ${authToken}`,
-              'Cookie': cookies,
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            },
-            httpsAgent: agent,
-          }
-        )
+        let allCases: any[] = []
+        let pageNum = 1
+        const pageLimit = 100
+        let hasMore = true
 
-        const cases = Array.isArray(response.data)
-          ? response.data
-          : (response.data.data || [])
+        while (hasMore) {
+          const response = await axios.get(
+            `https://erap-public.kgp.kz/psap/api/cases/load/?pageNum=${pageNum}&limit=${pageLimit}&orderBy=desc`,
+            {
+              headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Cookie': cookies,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              },
+              httpsAgent: agent,
+            }
+          )
+
+          const pageCases = Array.isArray(response.data)
+            ? response.data
+            : (response.data.data || [])
+
+          allCases = allCases.concat(pageCases)
+
+          if (pageCases.length < pageLimit) {
+            hasMore = false
+          } else {
+            pageNum++
+          }
+        }
+
+        const cases = allCases
 
         const existingFines = await prisma.fine.findMany({
           where: { ecpAuthId: ecpAuth.id },
-          select: { externalId: true, id: true }
+          select: { externalId: true }
         })
         const existingExternalIds = new Set(existingFines.map(f => f.externalId))
 
@@ -85,6 +102,7 @@ export async function POST(request: NextRequest) {
           status: string
           commitDate: Date | null
           decisionDate: Date | null
+          caseNumber: string | null
           fullName: string
           vehicleNumber: string
           serialNumber: string | null
@@ -106,6 +124,7 @@ export async function POST(request: NextRequest) {
             status: string
             commitDate: Date | null
             decisionDate: Date | null
+            caseNumber: string | null
             fullName: string
             vehicleNumber: string
             serialNumber: string | null
@@ -123,7 +142,12 @@ export async function POST(request: NextRequest) {
         }> = []
 
         for (const caseItem of cases) {
-            const externalId = caseItem.id || caseItem.rid
+            const caseNumber = caseItem.caseNumber || caseItem.case_number || null
+            const externalId = caseNumber || caseItem.rid || caseItem.id
+
+            if (!externalId) {
+              continue
+            }
 
             let status = 'unpaid'
             if (caseItem.paid === 1) {
@@ -150,10 +174,22 @@ export async function POST(request: NextRequest) {
             const articleCode = caseItem.article?.code || ''
             const articleName = caseItem.article?.nameRu || ''
 
+            let apiDecisionDate: Date | null = null
+            if (caseItem.decisionDate) {
+              apiDecisionDate = new Date(caseItem.decisionDate)
+            } else if (caseItem.decision_date) {
+              apiDecisionDate = new Date(caseItem.decision_date)
+            } else if (caseItem.lastAp?.decisionDate) {
+              apiDecisionDate = new Date(caseItem.lastAp.decisionDate)
+            } else if (caseItem.lastAp?.decision_date) {
+              apiDecisionDate = new Date(caseItem.lastAp.decision_date)
+            }
+
             const fineData = {
               status: status,
               commitDate: caseItem.commitDate ? new Date(caseItem.commitDate) : null,
-              decisionDate: null,
+              decisionDate: apiDecisionDate,
+              caseNumber: caseNumber,
               fullName: fullName,
               vehicleNumber: vehicleNumber,
               serialNumber: serialNumber,
@@ -202,7 +238,7 @@ export async function POST(request: NextRequest) {
           }
 
         if (pdfExtractionTasks.length > 0) {
-          const PDF_BATCH_SIZE = 5
+          const PDF_BATCH_SIZE = 20
           const totalCreates = finesToCreate.length
 
           for (let i = 0; i < pdfExtractionTasks.length; i += PDF_BATCH_SIZE) {
@@ -210,20 +246,18 @@ export async function POST(request: NextRequest) {
 
             await Promise.allSettled(
               batch.map(async (task) => {
-                try {
-                    const decisionDate = await extractDecisionDateFromPdf(
-                    task.pdfUrl,
-                    authToken
-                  )
+                const decisionDate = await extractDecisionDateFromPdf(
+                  task.pdfUrl,
+                  authToken
+                )
 
+                if (decisionDate) {
                   if (task.index < totalCreates) {
                     finesToCreate[task.index].decisionDate = decisionDate
                   } else {
                     const updateIndex = task.index - totalCreates
                     finesToUpdate[updateIndex].data.decisionDate = decisionDate
                   }
-                } catch (error) {
-                  console.error(`Failed to extract decision date from PDF: ${task.pdfUrl}`, error)
                 }
               })
             )

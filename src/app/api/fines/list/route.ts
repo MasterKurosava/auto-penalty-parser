@@ -3,6 +3,9 @@ import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { fineFilterSchema } from '@/lib/auth-validations'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET(request: NextRequest) {
   try {
     const user = await requireAuth()
@@ -45,6 +48,7 @@ export async function GET(request: NextRequest) {
         { fullName: { contains: filters.search, mode: 'insensitive' } },
         { vehicleNumber: { contains: filters.search, mode: 'insensitive' } },
         { serialNumber: { contains: filters.search, mode: 'insensitive' } },
+        { caseNumber: { contains: filters.search, mode: 'insensitive' } },
         { articleCode: { contains: filters.search, mode: 'insensitive' } },
         { articleName: { contains: filters.search, mode: 'insensitive' } },
         { ecpAuth: { iinBin: { contains: filters.search, mode: 'insensitive' } } },
@@ -64,7 +68,22 @@ export async function GET(request: NextRequest) {
     const [fines, total] = await Promise.all([
       prisma.fine.findMany({
         where,
-        include: {
+        select: {
+          id: true,
+          externalId: true,
+          status: true,
+          commitDate: true,
+          decisionDate: true,
+          caseNumber: true,
+          fullName: true,
+          vehicleNumber: true,
+          serialNumber: true,
+          articleCode: true,
+          articleName: true,
+          amountTotal: true,
+          pdfUrl: true,
+          createdAt: true,
+          updatedAt: true,
           ecpAuth: {
             select: {
               id: true,
@@ -87,6 +106,12 @@ export async function GET(request: NextRequest) {
       total,
       limit: filters.limit,
       offset: filters.offset,
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
     })
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {

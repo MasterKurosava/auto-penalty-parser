@@ -24,6 +24,7 @@ interface Fine {
   status: string
   commitDate: string | null
   decisionDate: string | null
+  caseNumber: string | null
   fullName: string
   vehicleNumber: string
   serialNumber: string | null
@@ -74,6 +75,11 @@ export const FinesTableRow = React.memo(function FinesTableRow({
         {fine.decisionDate
           ? format(new Date(fine.decisionDate), 'dd.MM.yyyy')
           : '—'}
+      </TableCell>
+      <TableCell className="font-medium">
+        <div className="text-sm font-mono">
+          {fine.caseNumber || '—'}
+        </div>
       </TableCell>
       <TableCell className="font-medium">
         <div className="text-sm">
