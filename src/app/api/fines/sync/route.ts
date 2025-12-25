@@ -47,44 +47,48 @@ export async function POST(request: NextRequest) {
           : null
         const uuid = await decryptToken(ecpAuth.uuidEnc)
 
-        const tokenCreatedAt = new Date().toISOString()
         const cookies = [
-          `psap-token=${authToken}`,
-          `psap-token-created-at=${encodeURIComponent(tokenCreatedAt)}`,
-          `psap-refresh-token=${refreshToken || ''}`,
           `psap-uuid=${uuid}`,
-        ].join('; ')
+          `psap-token=${authToken}`,
+          `psap-token-created-at=${encodeURIComponent(new Date().toISOString())}`,
+          refreshToken ? `psap-refresh-token=${refreshToken}` : '',
+        ].filter(Boolean).join('; ')
 
         let allCases: any[] = []
         let pageNum = 1
-        const pageLimit = 100
-        let hasMore = true
+        const pageLimit = 10
 
-        while (hasMore) {
-          const response = await axios.get(
-            `https://erap-public.kgp.kz/psap/api/cases/load/?pageNum=${pageNum}&limit=${pageLimit}&orderBy=desc`,
-            {
+        while (true) {
+          const url = `https://erap-public.kgp.kz/psap/api/cases/load/?pageNum=${pageNum}&limit=${pageLimit}&orderBy=desc`
+          
+          try {
+            const response = await axios.get(url, {
               headers: {
                 'Authorization': `Bearer ${authToken}`,
                 'Cookie': cookies,
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
               },
               httpsAgent: agent,
+              timeout: 60000,
+            })
+
+            const pageCases = Array.isArray(response.data) ? response.data : (response.data?.data || [])
+            allCases = allCases.concat(pageCases)
+
+            if (pageCases.length === 0 || pageCases.length < pageLimit) {
+              break
             }
-          )
-
-          const pageCases = Array.isArray(response.data)
-            ? response.data
-            : (response.data.data || [])
-
-          allCases = allCases.concat(pageCases)
-
-          if (pageCases.length < pageLimit) {
-            hasMore = false
-          } else {
             pageNum++
+          } catch (apiError: any) {
+            if (allCases.length > 0) {
+              break
+            }
+            
+            if (apiError.response?.status === 500) {
+              const errorMessage = apiError.response?.data?.message || apiError.message
+              throw new Error(`Ошибка API штрафов (500): ${errorMessage}`)
+            }
+            
+            throw apiError
           }
         }
 
@@ -142,6 +146,10 @@ export async function POST(request: NextRequest) {
         }> = []
 
         for (const caseItem of cases) {
+            if (!caseItem || typeof caseItem !== 'object') {
+              continue
+            }
+
             const caseNumber = caseItem.caseNumber || caseItem.case_number || null
             const externalId = caseNumber || caseItem.rid || caseItem.id
 
@@ -175,19 +183,47 @@ export async function POST(request: NextRequest) {
             const articleName = caseItem.article?.nameRu || ''
 
             let apiDecisionDate: Date | null = null
-            if (caseItem.decisionDate) {
-              apiDecisionDate = new Date(caseItem.decisionDate)
-            } else if (caseItem.decision_date) {
-              apiDecisionDate = new Date(caseItem.decision_date)
-            } else if (caseItem.lastAp?.decisionDate) {
-              apiDecisionDate = new Date(caseItem.lastAp.decisionDate)
-            } else if (caseItem.lastAp?.decision_date) {
-              apiDecisionDate = new Date(caseItem.lastAp.decision_date)
+            try {
+              if (caseItem.decisionDate) {
+                apiDecisionDate = new Date(caseItem.decisionDate)
+              } else if (caseItem.decision_date) {
+                apiDecisionDate = new Date(caseItem.decision_date)
+              } else if (caseItem.lastAp?.decisionDate) {
+                apiDecisionDate = new Date(caseItem.lastAp.decisionDate)
+              } else if (caseItem.lastAp?.decision_date) {
+                apiDecisionDate = new Date(caseItem.lastAp.decision_date)
+              }
+              
+              if (apiDecisionDate && isNaN(apiDecisionDate.getTime())) {
+                apiDecisionDate = null
+              }
+            } catch (dateError) {
+              apiDecisionDate = null
+            }
+
+            let amountTotal = 0
+            if (caseItem.lastAp && caseItem.lastAp.totalAmount != null) {
+              const parsed = parseFloat(caseItem.lastAp.totalAmount)
+              if (!isNaN(parsed)) {
+                amountTotal = parsed
+              }
+            }
+
+            let commitDate: Date | null = null
+            try {
+              if (caseItem.commitDate) {
+                commitDate = new Date(caseItem.commitDate)
+                if (isNaN(commitDate.getTime())) {
+                  commitDate = null
+                }
+              }
+            } catch (dateError) {
+              commitDate = null
             }
 
             const fineData = {
               status: status,
-              commitDate: caseItem.commitDate ? new Date(caseItem.commitDate) : null,
+              commitDate: commitDate,
               decisionDate: apiDecisionDate,
               caseNumber: caseNumber,
               fullName: fullName,
@@ -195,9 +231,7 @@ export async function POST(request: NextRequest) {
               serialNumber: serialNumber,
               articleCode: articleCode,
               articleName: articleName,
-              amountTotal: caseItem.lastAp?.totalAmount
-                ? parseFloat(caseItem.lastAp.totalAmount)
-                : 0,
+              amountTotal: amountTotal,
               pdfUrl: pdfUrl,
               updatedAt: new Date(),
             }
@@ -310,11 +344,21 @@ export async function POST(request: NextRequest) {
           invalidated = true
         }
 
+        let errorMessage = error.message || 'Неизвестная ошибка'
+        if (error.response?.status === 500) {
+          const apiErrorMsg = error.response?.data?.message
+          if (apiErrorMsg) {
+            errorMessage = `Ошибка сервера штрафов: ${apiErrorMsg}`
+          } else {
+            errorMessage = 'Ошибка сервера штрафов (500). Возможно, проблема на стороне API.'
+          }
+        }
+
         results.push({
           ecpAuthId: ecpAuth.id,
           iinBin: ecpAuth.iinBin,
           success: false,
-          error: error.message || 'Неизвестная ошибка',
+          error: errorMessage,
           invalidated: invalidated,
         })
       }
@@ -334,7 +378,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { error: 'Внутренняя ошибка сервера' },
+      { error: 'Внутренняя ошибка сервера', details: error instanceof Error ? error.message : 'Неизвестная ошибка' },
       { status: 500 }
     )
   }
